@@ -61,7 +61,16 @@ function Update-GitIgnore {
   if (Test-Path -LiteralPath $Path) {
     $text = Get-Content -LiteralPath $Path -Raw
     $lines = @($text -split "\r?\n")
-    if ($lines -contains $entry) {
+    $hasCodexIgnore = $false
+    foreach ($line in $lines) {
+      $normalizedLine = $line.Trim()
+      if ($normalizedLine -eq '.codex' -or $normalizedLine -eq $entry) {
+        $hasCodexIgnore = $true
+        break
+      }
+    }
+
+    if ($hasCodexIgnore) {
       return
     }
 

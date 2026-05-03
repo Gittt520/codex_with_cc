@@ -65,6 +65,40 @@ function Test-ClaudeDelegateHasFinalResult {
   return (Test-ClaudeDelegateTextHasFinalResultHeading -Text $content)
 }
 
+function Convert-ClaudeDelegateUnstructuredFinalText {
+  param([AllowNull()][string]$Text)
+
+  $trimmedText = if ([string]::IsNullOrWhiteSpace($Text)) { '' } else { $Text.Trim() }
+  if ([string]::IsNullOrWhiteSpace($trimmedText)) {
+    return ''
+  }
+  if (Test-ClaudeDelegateTextHasFinalResultHeading -Text $trimmedText) {
+    return $trimmedText
+  }
+
+  return @"
+Process Log
+- Claude returned a successful response without the required delegate report headings.
+- The delegate wrapper normalized that response into the required structured report envelope.
+
+Summary
+Claude completed successfully, but its final response did not use the required report template. The original response is preserved under Final Result.
+
+Changed Files
+Unknown from unstructured response; inspect git diff and raw delegate artifacts before accepting file-level conclusions.
+
+Verification
+Unknown from unstructured response; do not treat verification as proven unless the original response below lists exact commands and outcomes.
+
+Final Result
+UNSTRUCTURED_SUCCESS_NORMALIZED
+$trimmedText
+
+Risks Or Follow-ups
+- Review the raw stream, trace, and repository diff before accepting verification-sensitive changes.
+"@
+}
+
 function Get-ClaudeDelegateOutputResolution {
   param(
     [AllowNull()][string]$FinalText,
@@ -76,19 +110,34 @@ function Get-ClaudeDelegateOutputResolution {
 
   $finalTextHasFinalResult = Test-ClaudeDelegateTextHasFinalResultHeading -Text $FinalText
   $existingStructuredOutput = Test-ClaudeDelegateHasFinalResult -Path $OutputPath
+  $outputWasNormalized = (
+    $ExitCode -eq 0 -and
+    $SawResultSuccess -and
+    -not $finalTextHasFinalResult -and
+    -not $existingStructuredOutput -and
+    -not [string]::IsNullOrWhiteSpace($FinalText)
+  )
+  $persistedFinalText = if ($outputWasNormalized) {
+    Convert-ClaudeDelegateUnstructuredFinalText -Text $FinalText
+  } else {
+    $FinalText
+  }
+  $persistedTextHasFinalResult = Test-ClaudeDelegateTextHasFinalResultHeading -Text $persistedFinalText
   $shouldPersistFinalText = (
-    $finalTextHasFinalResult -or
+    $persistedTextHasFinalResult -or
     (-not $existingStructuredOutput -and -not [string]::IsNullOrWhiteSpace($FinalText))
   )
   $delegateSucceeded = (
     $ExitCode -eq 0 -and
     $SawResultSuccess -and
-    ($CapturedFinalResultHeading -or $finalTextHasFinalResult -or $existingStructuredOutput)
+    ($CapturedFinalResultHeading -or $persistedTextHasFinalResult -or $existingStructuredOutput)
   )
 
   return [pscustomobject]([ordered]@{
     finalTextHasFinalResult = $finalTextHasFinalResult
     existingStructuredOutput = $existingStructuredOutput
+    outputWasNormalized = $outputWasNormalized
+    persistedFinalText = $persistedFinalText
     shouldPersistFinalText = $shouldPersistFinalText
     delegateSucceeded = $delegateSucceeded
   })

@@ -83,6 +83,7 @@ try {
   Assert-True -Condition ($null -ne (Get-Command Get-ClaudeDelegateRetryDecision -ErrorAction SilentlyContinue)) -Name 'backend-helper-exports-retry-decision'
   Assert-True -Condition ($null -ne (Get-Command Get-ClaudeDelegateFailureSummary -ErrorAction SilentlyContinue)) -Name 'backend-helper-exports-failure-summary'
   Assert-True -Condition ($null -ne (Get-Command Get-ClaudeDelegateOutputResolution -ErrorAction SilentlyContinue)) -Name 'backend-helper-exports-output-resolution'
+  Assert-True -Condition ($null -ne (Get-Command Convert-ClaudeDelegateUnstructuredFinalText -ErrorAction SilentlyContinue)) -Name 'backend-helper-exports-unstructured-final-text-normalizer'
   Assert-True -Condition ($null -ne (Get-Command Reset-ClaudeSessionLeaseForFreshSession -ErrorAction SilentlyContinue)) -Name 'session-pool-exports-fresh-reset'
 
   $missingChildThreadMarker = Invoke-DelegateWorkerScript -ArgumentList @(
@@ -112,6 +113,42 @@ try {
   $dryRunStatus = Get-Content -LiteralPath ((Get-ChildItem -LiteralPath $dryRunArtifactRoot -Filter 'status_*.json' | Select-Object -First 1).FullName) -Raw | ConvertFrom-Json
   Assert-Equal -Actual ([int]$dryRunConfig.maxRetryCount) -Expected 7 -Name 'dry-run-config-records-max-retry-count'
   Assert-Equal -Actual ([int]$dryRunStatus.maxRetryCount) -Expected 7 -Name 'dry-run-status-records-max-retry-count'
+
+  $fakeClaudeBin = Join-Path $tempRoot 'fake-claude-bin'
+  New-Item -ItemType Directory -Path $fakeClaudeBin -Force | Out-Null
+  $fakeClaudePath = Join-Path $fakeClaudeBin 'claude.cmd'
+  Set-Content -LiteralPath $fakeClaudePath -Value @'
+@echo off
+echo {"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"I inspected the tests, found one empty placeholder, and recommend adding example coverage."}]}}
+echo {"type":"result","subtype":"success"}
+exit /b 0
+'@ -Encoding ASCII
+
+  $originalPath = [Environment]::GetEnvironmentVariable('PATH', 'Process')
+  $unstructuredArtifactRoot = Join-Path $tempRoot 'unstructured-success-run'
+  try {
+    [Environment]::SetEnvironmentVariable('PATH', "$fakeClaudeBin$([IO.Path]::PathSeparator)$originalPath", 'Process')
+    $unstructuredRun = Invoke-DelegateWorkerScript -ArgumentList @(
+      '-Task', 'unstructured success normalization probe',
+      '-ArtifactRoot', $unstructuredArtifactRoot,
+      '-SessionKey', 'unstructured-success',
+      '-SessionMode', 'PrimaryReuse'
+    ) -SetChildThreadMarker
+  } finally {
+    [Environment]::SetEnvironmentVariable('PATH', $originalPath, 'Process')
+  }
+  if ($unstructuredRun.ExitCode -ne 0) {
+    throw "delegate unstructured success run failed unexpectedly.`n$($unstructuredRun.Output -join [Environment]::NewLine)"
+  }
+  $unstructuredOutputPath = (Get-ChildItem -LiteralPath $unstructuredArtifactRoot -Filter 'claude_*.md' | Select-Object -First 1).FullName
+  $unstructuredStatusPath = (Get-ChildItem -LiteralPath $unstructuredArtifactRoot -Filter 'status_*.json' | Select-Object -First 1).FullName
+  $unstructuredOutputText = Get-Content -LiteralPath $unstructuredOutputPath -Raw
+  $unstructuredStatus = Get-Content -LiteralPath $unstructuredStatusPath -Raw | ConvertFrom-Json
+  Assert-True -Condition (Test-ClaudeDelegateTextHasFinalResultHeading -Text $unstructuredOutputText) -Name 'unstructured-run-output-has-normalized-final-result'
+  Assert-True -Condition ($unstructuredOutputText.Contains('UNSTRUCTURED_SUCCESS_NORMALIZED')) -Name 'unstructured-run-output-labels-normalization'
+  Assert-True -Condition ($unstructuredOutputText.Contains('I inspected the tests')) -Name 'unstructured-run-output-preserves-original-text'
+  Assert-Equal -Actual ([string]$unstructuredStatus.status) -Expected 'completed' -Name 'unstructured-run-status-completed'
+  Assert-True -Condition ([bool]$unstructuredStatus.outputWasNormalized) -Name 'unstructured-run-status-records-normalization'
 
   $cliArgs = @(New-ClaudeDelegateCliArgs `
     -Model 'sonnet' `
@@ -262,6 +299,20 @@ None
   Assert-True -Condition ($outputResolution.delegateSucceeded) -Name 'existing-structured-output-counts-as-success'
   Assert-True -Condition ($outputResolution.existingStructuredOutput) -Name 'existing-structured-output-detected'
   Assert-True -Condition (-not $outputResolution.shouldPersistFinalText) -Name 'existing-structured-output-is-not-overwritten'
+
+  $unstructuredOutputPath = Join-Path $tempRoot 'missing-report-headings.md'
+  $unstructuredResolution = Get-ClaudeDelegateOutputResolution `
+    -FinalText 'I inspected the tests, found one empty placeholder, and recommend adding example coverage.' `
+    -OutputPath $unstructuredOutputPath `
+    -ExitCode 0 `
+    -SawResultSuccess $true `
+    -CapturedFinalResultHeading $false
+  Assert-True -Condition ($unstructuredResolution.delegateSucceeded) -Name 'unstructured-success-is-normalized-to-success'
+  Assert-True -Condition ($unstructuredResolution.outputWasNormalized) -Name 'unstructured-success-records-normalization'
+  Assert-True -Condition ($unstructuredResolution.shouldPersistFinalText) -Name 'unstructured-success-persists-normalized-report'
+  Assert-True -Condition (Test-ClaudeDelegateTextHasFinalResultHeading -Text $unstructuredResolution.persistedFinalText) -Name 'unstructured-success-normalized-report-has-final-result'
+  Assert-True -Condition ($unstructuredResolution.persistedFinalText.Contains('UNSTRUCTURED_SUCCESS_NORMALIZED')) -Name 'unstructured-success-normalized-report-labels-risk'
+  Assert-True -Condition ($unstructuredResolution.persistedFinalText.Contains('I inspected the tests')) -Name 'unstructured-success-normalized-report-preserves-original-text'
 
   $runId = 'artifact-verify-test'
   $artifactRoot = Join-Path $tempRoot 'artifact-root'

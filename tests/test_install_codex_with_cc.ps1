@@ -50,6 +50,11 @@ $targetRoot = Join-Path $tempRoot 'host-project'
 try {
   New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
   Set-Content -LiteralPath (Join-Path $targetRoot 'README.md') -Value '# Host Project' -Encoding UTF8
+  Set-Content -LiteralPath (Join-Path $targetRoot '.gitignore') -Value @"
+build
+.codex
+.claude
+"@ -Encoding UTF8
   Set-Content -LiteralPath (Join-Path $targetRoot 'AGENTS.md') -Value @"
 # Existing Host Instructions
 
@@ -79,7 +84,8 @@ Keep this project-specific rule.
   Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $targetRoot 'docs\ai'))) -Name 'legacy-docs-ai-not-created'
   Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $targetRoot 'docs\scripts\ai'))) -Name 'legacy-docs-scripts-ai-not-created'
   $gitIgnoreText = Get-Content -LiteralPath (Join-Path $targetRoot '.gitignore') -Raw
-  Assert-Contains -Text $gitIgnoreText -Needle '.codex/' -Name 'gitignore-contains-codex-root'
+  Assert-Contains -Text $gitIgnoreText -Needle '.codex' -Name 'gitignore-contains-codex-root'
+  Assert-NotContains -Text $gitIgnoreText -Needle '.codex/' -Name 'gitignore-does-not-append-codex-slash-when-codex-root-exists'
 
   $agentsText = Get-Content -LiteralPath (Join-Path $targetRoot 'AGENTS.md') -Raw
   Assert-Contains -Text $agentsText -Needle 'Keep this project-specific rule.' -Name 'existing-agents-content-preserved'

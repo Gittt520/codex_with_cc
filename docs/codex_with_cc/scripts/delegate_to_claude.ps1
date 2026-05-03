@@ -392,6 +392,7 @@ try {
       sawAssistantText = $false
       sawResultSuccess = $false
       capturedFinalResult = $false
+      outputWasNormalized = $false
       sawStaleSessionText = $false
       sawStreamJsonVerboseError = $false
     })
@@ -558,6 +559,10 @@ Risks Or Follow-ups
     if ([bool]$outputResolution.existingStructuredOutput -or [bool]$outputResolution.finalTextHasFinalResult) {
       $attemptRecord.capturedFinalResult = $true
     }
+    if ([bool]$outputResolution.outputWasNormalized) {
+      $attemptRecord.capturedFinalResult = $true
+      $attemptRecord.outputWasNormalized = $true
+    }
 
     $delegateSucceeded = [bool]$outputResolution.delegateSucceeded
     break
@@ -573,7 +578,7 @@ Risks Or Follow-ups
   }
 
   if ([bool]$outputResolution.shouldPersistFinalText) {
-    [System.IO.File]::WriteAllText($resolvedOutputPath, $finalText, $utf8NoBom)
+    [System.IO.File]::WriteAllText($resolvedOutputPath, [string]$outputResolution.persistedFinalText, $utf8NoBom)
   } elseif (-not (Test-Path -LiteralPath $resolvedOutputPath)) {
     [System.IO.File]::WriteAllText($resolvedOutputPath, 'Claude delegate finished without a structured text result.', $utf8NoBom)
   }
@@ -581,6 +586,11 @@ Risks Or Follow-ups
   $outputHasFinalResult = Test-ClaudeDelegateHasFinalResult -Path $resolvedOutputPath
   if ($statusData.attempts.Count -gt 0 -and $outputHasFinalResult) {
     $statusData.attempts[$statusData.attempts.Count - 1].capturedFinalResult = $true
+  }
+  if ([bool]$outputResolution.outputWasNormalized) {
+    $statusData.outputWasNormalized = $true
+    $configData.outputWasNormalized = $true
+    Write-ClaudeDelegateJsonFile -Path $configPath -Data $configData
   }
 
   $statusData.outputBytes = (Get-Item -LiteralPath $resolvedOutputPath).Length
