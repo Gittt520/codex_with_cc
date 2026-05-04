@@ -1,6 +1,6 @@
 > 如果你是 Codex，并且用户让你把本仓库集成到某个项目里：请阅读 [docs/AI_INSTALL.md](docs/AI_INSTALL.md)。
 >
-> 下面内容是人看的，AI无需阅读。
+> 下面内容是给人看的，AI无需阅读。
 
 # Codex 穷鬼大救星！
 

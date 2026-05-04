@@ -607,11 +607,24 @@ Risks Or Follow-ups
   $validationTaskRoot = Join-Path $validationRoot 'sample-real-chain\tasks'
   $validationArtifactRoot = Join-Path $validationRoot 'sample-real-chain\artifacts'
   Assert-True -Condition (Test-Path -LiteralPath $validationTaskRoot) -Name 'real-chain-validation-creates-task-root'
-  $validationTasks = Get-ChildItem -LiteralPath $validationTaskRoot -Filter '*.md'
+  $validationTaskDateDirs = @(Get-ChildItem -LiteralPath $validationTaskRoot -Directory)
+  Assert-Equal -Actual $validationTaskDateDirs.Count -Expected 1 -Name 'real-chain-validation-creates-one-task-date-directory'
+  Assert-True -Condition ($validationTaskDateDirs[0].Name -match '^\d{8}$') -Name 'real-chain-validation-task-date-directory-uses-yyyymmdd'
+  $validationTaskDateRoot = $validationTaskDateDirs[0].FullName
+  $validationTasks = Get-ChildItem -LiteralPath $validationTaskDateRoot -Filter '*.md'
   Assert-Equal -Actual $validationTasks.Count -Expected 5 -Name 'real-chain-validation-creates-five-tasks'
+  foreach ($validationTask in $validationTasks) {
+    Assert-True -Condition ($validationTask.Name -match '^\d{6}-\d{3}-[0-9a-f]{6}-.+\.md$') -Name "real-chain-validation-task-file-has-unique-time-prefix-$($validationTask.BaseName)"
+  }
   Assert-True -Condition (($validationOutputText -join [Environment]::NewLine).Contains('verify_delegate_chain.ps1')) -Name 'real-chain-validation-prints-chain-verify-command'
-  $anchorTaskText = Get-Content -LiteralPath (Join-Path $validationTaskRoot 'anchor-read-protocol.md') -Raw
-  $reuseTaskText = Get-Content -LiteralPath (Join-Path $validationTaskRoot 'reuse-cross-check-1.md') -Raw
+  $anchorTask = Get-ChildItem -LiteralPath $validationTaskDateRoot -Filter '*-anchor-read-protocol.md' | Select-Object -First 1
+  $reuseTask = Get-ChildItem -LiteralPath $validationTaskDateRoot -Filter '*-reuse-cross-check-1.md' | Select-Object -First 1
+  Assert-True -Condition ($null -ne $anchorTask) -Name 'real-chain-validation-creates-unique-anchor-task'
+  Assert-True -Condition ($null -ne $reuseTask) -Name 'real-chain-validation-creates-unique-reuse-task'
+  Assert-True -Condition (($validationOutputText -join [Environment]::NewLine).Contains($validationTaskDateDirs[0].Name)) -Name 'real-chain-validation-prints-task-date-directory'
+  Assert-True -Condition (($validationOutputText -join [Environment]::NewLine).Contains($anchorTask.Name)) -Name 'real-chain-validation-prints-unique-anchor-task-name'
+  $anchorTaskText = Get-Content -LiteralPath $anchorTask.FullName -Raw
+  $reuseTaskText = Get-Content -LiteralPath $reuseTask.FullName -Raw
   Assert-True -Condition ($anchorTaskText.Contains('SessionKey: sample-real-chain-session')) -Name 'real-chain-validation-expands-session-key'
   Assert-True -Condition ($anchorTaskText.Contains("ArtifactRoot: $validationArtifactRoot")) -Name 'real-chain-validation-expands-artifact-root'
   Assert-True -Condition ($anchorTaskText.Contains('SessionMode: PrimaryAnchor')) -Name 'real-chain-validation-expands-session-mode'

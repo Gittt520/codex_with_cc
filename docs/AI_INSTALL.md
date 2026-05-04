@@ -86,7 +86,7 @@ docs/codex_with_cc/scripts/delegate_to_claude.ps1
 docs/codex_with_cc
 ```
 
-安装脚本还应确保 `.codex/codex_with_cc/tasks` 存在，用于放委派任务文件；不要再把任务文件放进 `docs/codex_with_cc` 这种会进版本库的目录里，也不要再依赖 `.gitkeep` 之类的占位文件。
+安装脚本还应确保 `.codex/codex_with_cc/tasks` 存在，用于放委派任务文件；实际任务文件应按 `.codex/codex_with_cc/tasks/<yyyyMMdd>/<HHmmssfff>-<short-id>-<task-file>.md` 创建，避免同一天多个会话或多个子代理任务使用固定文件名互相覆盖；不要再把任务文件放进 `docs/codex_with_cc` 这种会进版本库的目录里，也不要再依赖 `.gitkeep` 之类的占位文件。
 同时应确保目标项目的 `.gitignore` 包含 `.codex/`，避免委派任务和运行产物被误提交。
 
 5. 更新目标项目根目录的 `AGENTS.md`。没有就创建，有就追加托管块，不要删旧内容。除非用户明确禁止，否则不要为这一步单独征求确认。
@@ -177,7 +177,7 @@ Windows 模板中的子代理标准调用形态：
 ```powershell
 $env:CODEX_CLAUDE_CHILD_THREAD = '1'
 pwsh -NoProfile -File .\docs\codex_with_cc\scripts\delegate_to_claude.ps1 `
-  -TaskFile .\.codex\codex_with_cc\tasks\<task-file>.md `
+  -TaskFile .\.codex\codex_with_cc\tasks\<yyyyMMdd>\<HHmmssfff>-<short-id>-<task-file>.md `
   -SessionMode PrimaryReuse `
   -SessionKey <stable-session-key> `
   -BypassPermissions
