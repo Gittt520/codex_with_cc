@@ -28,7 +28,7 @@ Keep this project-specific rule.
   Assert-True -Condition (Test-Path -LiteralPath $sourceWorkflowRoot) -Name 'source-workflow-root-exists-at-repo-root'
   Assert-True -Condition (-not (Test-Path -LiteralPath $legacyTemplatesRoot)) -Name 'legacy-templates-root-removed'
 
-  $installOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $installerPath -TargetRoot $targetRoot 2>&1
+  $installOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $installerPath -TargetRoot $targetRoot -Platform Windows 2>&1
   if ($LASTEXITCODE -ne 0) {
     throw "installer failed unexpectedly.`n$($installOutput -join [Environment]::NewLine)"
   }
@@ -43,7 +43,7 @@ Keep this project-specific rule.
   Assert-True -Condition (Test-Path -LiteralPath (Join-Path $workflowRoot 'windows_scripts\delegate_to_claude.ps1')) -Name 'delegate-script-created'
   Assert-True -Condition (Test-Path -LiteralPath (Join-Path $workflowRoot 'windows_scripts\verify_delegate_chain.ps1')) -Name 'chain-verifier-created'
   Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $workflowRoot 'scripts'))) -Name 'legacy-scripts-dir-not-created'
-  Assert-True -Condition (Test-Path -LiteralPath (Join-Path $workflowRoot 'macos_scripts\README.md')) -Name 'macos-placeholder-created'
+  Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $workflowRoot 'macos_scripts'))) -Name 'windows-install-does-not-copy-macos-scripts'
   Assert-True -Condition (Test-Path -LiteralPath $taskRoot) -Name 'tasks-dir-created-under-codex-root'
   Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $taskRoot '.gitkeep'))) -Name 'tasks-gitkeep-not-created'
   Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $targetRoot 'docs\ai'))) -Name 'legacy-docs-ai-not-created'
@@ -80,7 +80,7 @@ Keep this project-specific rule.
   New-Item -ItemType Directory -Path $taskRoot -Force | Out-Null
   Set-Content -LiteralPath (Join-Path $taskRoot '.gitkeep') -Value '' -Encoding UTF8
 
-  $reinstallOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $installerPath -TargetRoot $targetRoot 2>&1
+  $reinstallOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $installerPath -TargetRoot $targetRoot -Platform Windows 2>&1
   if ($LASTEXITCODE -ne 0) {
     throw "reinstall failed unexpectedly.`n$($reinstallOutput -join [Environment]::NewLine)"
   }
@@ -103,6 +103,17 @@ Keep this project-specific rule.
   Assert-Contains -Text ($selfInstallOutput -join [Environment]::NewLine) -Needle 'Refusing to install codex_with_cc into its own source repository' -Name 'self-install-error-is-clear'
   Assert-True -Condition (Test-Path -LiteralPath (Join-Path $selfInstallRoot 'codex_with_cc\CODEX_WITH_CC.md')) -Name 'self-install-keeps-source-workflow'
   Assert-True -Condition (Test-Path -LiteralPath (Join-Path $selfInstallRoot 'codex_with_cc\windows_scripts\delegate_to_claude.ps1')) -Name 'self-install-keeps-source-scripts'
+
+  $macTargetRoot = Join-Path $tempRoot 'mac-host-project'
+  New-Item -ItemType Directory -Path $macTargetRoot -Force | Out-Null
+  $macInstallOutput = & pwsh -NoProfile -ExecutionPolicy Bypass -File $installerPath -TargetRoot $macTargetRoot -Platform macOS -SkipAgentEntrypoints 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "mac installer failed unexpectedly.`n$($macInstallOutput -join [Environment]::NewLine)"
+  }
+  $macWorkflowRoot = Join-Path $macTargetRoot 'docs\codex_with_cc'
+  Assert-True -Condition (Test-Path -LiteralPath (Join-Path $macWorkflowRoot 'CODEX_WITH_CC.md')) -Name 'mac-install-copies-workflow-doc'
+  Assert-True -Condition (Test-Path -LiteralPath (Join-Path $macWorkflowRoot 'macos_scripts\README.md')) -Name 'mac-install-copies-macos-scripts'
+  Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $macWorkflowRoot 'windows_scripts'))) -Name 'mac-install-does-not-copy-windows-scripts'
 
   Write-Host 'install tests passed' -ForegroundColor Green
 } finally {

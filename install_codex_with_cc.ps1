@@ -1,5 +1,7 @@
 param(
   [string]$TargetRoot = (Get-Location).Path,
+  [ValidateSet('Auto', 'Windows', 'macOS')]
+  [string]$Platform = 'Auto',
   [switch]$Force,
   [switch]$SkipAgentEntrypoints
 )
@@ -21,6 +23,28 @@ function Test-PathInside {
   $fullChild = Get-FullPath -Path $Child
   $fullParent = (Get-FullPath -Path $Parent).TrimEnd([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
   return $fullChild.StartsWith($fullParent + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Resolve-InstallPlatform {
+  param(
+    [Parameter(Mandatory = $true)]
+    [ValidateSet('Auto', 'Windows', 'macOS')]
+    [string]$Platform
+  )
+
+  if ($Platform -ne 'Auto') {
+    return $Platform
+  }
+
+  if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+    return 'Windows'
+  }
+
+  if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::OSX)) {
+    return 'macOS'
+  }
+
+  throw 'Unsupported install platform. Pass -Platform Windows or -Platform macOS explicitly.'
 }
 
 function Update-AgentEntrypoint {
@@ -87,6 +111,7 @@ function Update-GitIgnore {
 }
 
 $installerRoot = $PSScriptRoot
+$installPlatform = Resolve-InstallPlatform -Platform $Platform
 $resolvedInstallerRoot = Get-FullPath -Path $installerRoot
 $sourceWorkflowRoot = Join-Path $installerRoot 'codex_with_cc'
 if (-not (Test-Path -LiteralPath $sourceWorkflowRoot)) {
@@ -122,7 +147,14 @@ if (Test-Path -LiteralPath $workflowRoot) {
 }
 
 New-Item -ItemType Directory -Path $docsRoot -Force | Out-Null
-Copy-Item -LiteralPath $sourceWorkflowRoot -Destination $workflowRoot -Recurse -Force
+New-Item -ItemType Directory -Path $workflowRoot -Force | Out-Null
+$excludedScriptRoot = if ($installPlatform -eq 'Windows') { 'macos_scripts' } else { 'windows_scripts' }
+foreach ($sourceItem in Get-ChildItem -LiteralPath $sourceWorkflowRoot -Force) {
+  if ($sourceItem.Name -eq $excludedScriptRoot) {
+    continue
+  }
+  Copy-Item -LiteralPath $sourceItem.FullName -Destination $workflowRoot -Recurse -Force
+}
 New-Item -ItemType Directory -Path $taskRoot -Force | Out-Null
 $taskGitkeepPath = Join-Path $taskRoot '.gitkeep'
 if (Test-Path -LiteralPath $taskGitkeepPath) {
