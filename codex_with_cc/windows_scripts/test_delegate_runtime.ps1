@@ -71,6 +71,47 @@ exit /b 0
 '@ -Encoding ASCII
 
   $originalPath = [Environment]::GetEnvironmentVariable('PATH', 'Process')
+  $lockContentionArtifactRoot = Join-Path $tempRoot 'lock-contention-run'
+  New-Item -ItemType Directory -Path $lockContentionArtifactRoot -Force | Out-Null
+  $heldDelegateLockPath = Join-Path $lockContentionArtifactRoot 'delegate.lock'
+  $heldDelegateLock = [System.IO.File]::Open(
+    $heldDelegateLockPath,
+    [System.IO.FileMode]::OpenOrCreate,
+    [System.IO.FileAccess]::ReadWrite,
+    [System.IO.FileShare]::None
+  )
+  try {
+    [Environment]::SetEnvironmentVariable('PATH', "$fakeClaudeBin$([IO.Path]::PathSeparator)$originalPath", 'Process')
+    $lockContentionRun = Invoke-DelegateWorkerScript -ArgumentList @(
+      '-Task', 'lock contention status probe',
+      '-ArtifactRoot', $lockContentionArtifactRoot,
+      '-SessionKey', 'lock-contention',
+      '-SessionMode', 'PrimaryReuse',
+      '-LockTimeoutSeconds', '0',
+      '-LockPollMilliseconds', '50'
+    ) -SetChildThreadMarker
+  } finally {
+    [Environment]::SetEnvironmentVariable('PATH', $originalPath, 'Process')
+    $heldDelegateLock.Dispose()
+    if (Test-Path -LiteralPath $heldDelegateLockPath) {
+      Remove-Item -LiteralPath $heldDelegateLockPath -Force
+    }
+  }
+  Assert-True -Condition ($lockContentionRun.ExitCode -ne 0) -Name 'lock-contention-run-fails'
+  Assert-True -Condition (($lockContentionRun.Output -join [Environment]::NewLine).Contains('Another delegate_to_claude run is still active')) -Name 'lock-contention-error-is-clear'
+  $lockContentionStatus = Get-Content -LiteralPath ((Get-ChildItem -LiteralPath $lockContentionArtifactRoot -Filter 'status_*.json' | Select-Object -First 1).FullName) -Raw | ConvertFrom-Json
+  $lockContentionConfig = Get-Content -LiteralPath ((Get-ChildItem -LiteralPath $lockContentionArtifactRoot -Filter 'config_*.json' | Select-Object -First 1).FullName) -Raw | ConvertFrom-Json
+  Assert-Equal -Actual ([string]$lockContentionStatus.status) -Expected 'failed' -Name 'lock-contention-status-failed'
+  Assert-Equal -Actual ([int]$lockContentionStatus.exitCode) -Expected 1 -Name 'lock-contention-status-exit-code-recorded'
+  Assert-True -Condition ([string]$lockContentionStatus.failureSummary -like '*Another delegate_to_claude run is still active*') -Name 'lock-contention-status-records-failure-summary'
+  Assert-True -Condition ([string]$lockContentionStatus.failureSummary -like '*STARTUP_FAILURE*') -Name 'lock-contention-status-labels-startup-failure'
+  Assert-Equal -Actual ([string]$lockContentionConfig.failureDisposition) -Expected 'NEED_HUMAN_INTERVENTION' -Name 'lock-contention-config-records-human-intervention'
+  $lockContentionVerifyOutput = & pwsh -NoProfile -File $verifyScriptPath -RunId ([string]$lockContentionStatus.runId) -ArtifactRoot $lockContentionArtifactRoot 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "verify_delegate_artifacts should accept lock contention failed artifact.`n$($lockContentionVerifyOutput -join [Environment]::NewLine)"
+  }
+  Assert-True -Condition (($lockContentionVerifyOutput -join [Environment]::NewLine).Contains('Artifact verification passed')) -Name 'lock-contention-artifact-verification-passes'
+
   $unstructuredArtifactRoot = Join-Path $tempRoot 'unstructured-success-run'
   try {
     [Environment]::SetEnvironmentVariable('PATH', "$fakeClaudeBin$([IO.Path]::PathSeparator)$originalPath", 'Process')

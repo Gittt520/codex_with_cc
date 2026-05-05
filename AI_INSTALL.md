@@ -144,7 +144,7 @@ pwsh -NoProfile -File .\docs\codex_with_cc\windows_scripts\run_real_delegate_cha
 
 macOS 不要照抄 Windows PowerShell 命令给用户。应该把工作流迁移成 macOS 原生命令。
 
-macOS 支持尚未实现；需要由安装 AI 参考 `docs/codex_with_cc/windows_scripts` 的行为自行迁移到 `docs/codex_with_cc/macos_scripts`。
+macOS 支持尚未实现；需要由安装 AI 参考源仓库里的 `codex_with_cc/windows_scripts` 行为，自行迁移为目标项目 `docs/codex_with_cc/macos_scripts` 下的原生 macOS 脚本。
 
 执行原则：
 

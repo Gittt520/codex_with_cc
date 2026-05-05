@@ -254,56 +254,134 @@ $statusData = [ordered]@{
 }
 Write-ClaudeDelegateJsonFile -Path $statusPath -Data $statusData
 
+function Complete-ClaudeDelegateStartupFailure {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$FailureMessage
+  )
+
+  $failureSummary = "STARTUP_FAILURE: $FailureMessage"
+  $utf8NoBomForFailure = New-Object System.Text.UTF8Encoding($false)
+  $failureOutput = @"
+Process Log
+- Delegate worker failed before Claude Code execution started.
+- Startup failure: $FailureMessage
+
+Summary
+The delegate run did not reach Claude Code execution.
+
+Changed Files
+None
+
+Verification
+- not run; delegate startup failed before worker execution
+
+Final Result
+FAIL / NEED_HUMAN_INTERVENTION
+$failureSummary
+
+Risks Or Follow-ups
+- Retry only after the startup blocker is resolved.
+"@
+
+  [System.IO.File]::WriteAllText($resolvedOutputPath, $failureOutput, $utf8NoBomForFailure)
+  if (-not (Test-Path -LiteralPath $rawStreamPath)) {
+    [System.IO.File]::WriteAllText($rawStreamPath, '', $utf8NoBomForFailure)
+  }
+  if (-not (Test-Path -LiteralPath $tracePath)) {
+    [System.IO.File]::WriteAllText($tracePath, "[startup-failure] $FailureMessage", $utf8NoBomForFailure)
+  }
+
+  $statusData.status = 'failed'
+  $statusData.outputBytes = (Get-Item -LiteralPath $resolvedOutputPath).Length
+  $statusData.exitCode = 1
+  $statusData.attemptCount = 1
+  $statusData.retryCount = 0
+  $statusData.failureDisposition = 'NEED_HUMAN_INTERVENTION'
+  $statusData.failureSummary = $failureSummary
+  $statusData.attempts = @(
+    [ordered]@{
+      attempt = 1
+      sessionId = ''
+      resume = $false
+      retryReason = $null
+      exitCode = 1
+      sawAssistantText = $false
+      sawResultSuccess = $false
+      capturedFinalResult = $true
+    }
+  )
+  $statusData.updatedAt = (Get-Date).ToString('o')
+
+  $configData.initialSessionId = ''
+  $configData.initialResume = $false
+  $configData.sessionId = ''
+  $configData.resume = $false
+  $configData.attemptCount = 1
+  $configData.retryCount = 0
+  $configData.failureDisposition = 'NEED_HUMAN_INTERVENTION'
+  $configData.failureSummary = $failureSummary
+  $configData.updatedAt = (Get-Date).ToString('o')
+
+  Write-ClaudeDelegateJsonFile -Path $configPath -Data $configData
+  Write-ClaudeDelegateJsonFile -Path $statusPath -Data $statusData
+}
+
 $lockStream = $null
-if (-not $AllowParallel) {
-  if ($LockTimeoutSeconds -lt 0) {
-    throw "LockTimeoutSeconds must be >= 0. Current: $LockTimeoutSeconds"
-  }
-  if ($LockPollMilliseconds -lt 50) {
-    throw "LockPollMilliseconds must be >= 50. Current: $LockPollMilliseconds"
-  }
+try {
+  if (-not $AllowParallel) {
+    if ($LockTimeoutSeconds -lt 0) {
+      throw "LockTimeoutSeconds must be >= 0. Current: $LockTimeoutSeconds"
+    }
+    if ($LockPollMilliseconds -lt 50) {
+      throw "LockPollMilliseconds must be >= 50. Current: $LockPollMilliseconds"
+    }
 
-  $lockDeadline = (Get-Date).AddSeconds($LockTimeoutSeconds)
-  while ($true) {
-    try {
-      $lockStream = [System.IO.File]::Open(
-        $lockPath,
-        [System.IO.FileMode]::OpenOrCreate,
-        [System.IO.FileAccess]::ReadWrite,
-        [System.IO.FileShare]::None
-      )
-      $lockInfo = @{
-        runId = $runId
-        sessionName = $effectiveName
-        pid = $PID
-        startedAt = (Get-Date).ToString('o')
-        mode = $Mode
-      } | ConvertTo-Json -Compress
-
-      $lockStream.SetLength(0)
-      $writer = New-Object System.IO.StreamWriter($lockStream, (New-Object System.Text.UTF8Encoding($false)), 1024, $true)
+    $lockDeadline = (Get-Date).AddSeconds($LockTimeoutSeconds)
+    while ($true) {
       try {
-        $writer.WriteLine($lockInfo)
-        $writer.Flush()
-      } finally {
-        $writer.Dispose()
-      }
-      break
-    } catch [System.IO.IOException] {
-      if ((Get-Date) -ge $lockDeadline) {
-        $lockSnapshot = ''
-        if (Test-Path -LiteralPath $lockPath) {
-          try {
-            $lockSnapshot = Get-Content -LiteralPath $lockPath -Raw -ErrorAction Stop
-          } catch {
-            $lockSnapshot = '<unreadable>'
-          }
+        $lockStream = [System.IO.File]::Open(
+          $lockPath,
+          [System.IO.FileMode]::OpenOrCreate,
+          [System.IO.FileAccess]::ReadWrite,
+          [System.IO.FileShare]::None
+        )
+        $lockInfo = @{
+          runId = $runId
+          sessionName = $effectiveName
+          pid = $PID
+          startedAt = (Get-Date).ToString('o')
+          mode = $Mode
+        } | ConvertTo-Json -Compress
+
+        $lockStream.SetLength(0)
+        $writer = New-Object System.IO.StreamWriter($lockStream, (New-Object System.Text.UTF8Encoding($false)), 1024, $true)
+        try {
+          $writer.WriteLine($lockInfo)
+          $writer.Flush()
+        } finally {
+          $writer.Dispose()
         }
-        throw "Another delegate_to_claude run is still active. Use -AllowParallel to bypass, or wait. Lock: $lockPath. Holder: $lockSnapshot"
+        break
+      } catch [System.IO.IOException] {
+        if ((Get-Date) -ge $lockDeadline) {
+          $lockSnapshot = ''
+          if (Test-Path -LiteralPath $lockPath) {
+            try {
+              $lockSnapshot = Get-Content -LiteralPath $lockPath -Raw -ErrorAction Stop
+            } catch {
+              $lockSnapshot = '<unreadable>'
+            }
+          }
+          throw "Another delegate_to_claude run is still active. Use -AllowParallel to bypass, or wait. Lock: $lockPath. Holder: $lockSnapshot"
+        }
+        Start-Sleep -Milliseconds $LockPollMilliseconds
       }
-      Start-Sleep -Milliseconds $LockPollMilliseconds
     }
   }
+} catch {
+  Complete-ClaudeDelegateStartupFailure -FailureMessage ([string]$_.Exception.Message)
+  throw
 }
 
 $utf8NoBom = Set-ClaudeDelegateUtf8Console

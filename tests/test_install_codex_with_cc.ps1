@@ -114,6 +114,8 @@ Keep this project-specific rule.
   Assert-True -Condition (Test-Path -LiteralPath (Join-Path $macWorkflowRoot 'CODEX_WITH_CC.md')) -Name 'mac-install-copies-workflow-doc'
   Assert-True -Condition (Test-Path -LiteralPath (Join-Path $macWorkflowRoot 'macos_scripts\README.md')) -Name 'mac-install-copies-macos-scripts'
   Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $macWorkflowRoot 'windows_scripts'))) -Name 'mac-install-does-not-copy-windows-scripts'
+  $macReadmeText = Get-Content -LiteralPath (Join-Path $macWorkflowRoot 'macos_scripts\README.md') -Raw
+  Assert-Contains -Text $macReadmeText -Needle 'source repository''s `codex_with_cc/windows_scripts`' -Name 'mac-placeholder-points-to-source-windows-reference'
 
   Write-Host 'install tests passed' -ForegroundColor Green
 } finally {
