@@ -16,9 +16,12 @@
 
 这一切都基于 DeepSeek 的离谱低价！六千万token的使用量，缓存命中98.5%，花费俩块钱，按照这套工作流，有codex统筹规划和结果验收，子代理只需要无脑干活，用deepseek 4 flash模型都绰绰有余。
 
+
 <img width="1619" height="971" alt="ChatGPT Image 2026年5月6日 22_10_26" src="https://github.com/user-attachments/assets/ba655d4d-e070-40e9-a6cd-a582f23617c8" />
 
+
 DeepSeek的api价格表，缓存命中0.02元/百万token，这和白送有什么区别？这个缓存命中折扣好像是永久折扣，没有时间限制……
+
 
 <img width="1802" height="872" alt="ChatGPT Image 2026年5月6日 22_22_26" src="https://github.com/user-attachments/assets/7d1bebeb-edac-494e-8bd0-6431e1f2b1c3" />
 
