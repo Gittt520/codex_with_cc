@@ -19,7 +19,7 @@
 
 ![ChatGPT Image 2026年5月6日 22_22_26](https://raw.githubusercontent.com/xdd666t/MyData/master/pic/flutter/blog/20260506222630165.png)
 
-DeepSeek的api价格表，缓存命中0.02元/百万token，这和白送有什么区别？这个缓存命中折扣好像是永久折扣，没有时间限制……
+DeepSeek的api价格表，缓存命中0.02元/百万token，这和白送有什么区别？这个缓存命中折扣好像是永久折扣，没有时间限制。
 
 
 ![ChatGPT Image 2026年5月6日 22_10_26](https://raw.githubusercontent.com/xdd666t/MyData/master/pic/flutter/blog/20260506222657005.png)
