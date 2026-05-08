@@ -1,0 +1,7 @@
+interface:
+  display_name: "Codex With CC"
+  short_description: "Route subagent work through Claude Code"
+  default_prompt: "Use $codex-with-cc to route any subagent or delegation task through the Codex with Claude Code workflow."
+
+policy:
+  allow_implicit_invocation: true

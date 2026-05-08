@@ -31,6 +31,7 @@ REPORT_HEADINGS = (
     "Final Result",
     "Risks Or Follow-ups",
 )
+SKILL_NAME = "codex-with-cc"
 
 
 class DelegateError(RuntimeError):
@@ -49,9 +50,19 @@ def workflow_root() -> Path:
     return runtime_python_root().parent
 
 
+def codex_home() -> Path:
+    raw = os.environ.get("CODEX_HOME")
+    return Path(raw).expanduser().resolve() if raw else (Path.home() / ".codex").resolve()
+
+
 def repo_root() -> Path:
     root = workflow_root()
     container = root.parent
+    if root.name == SKILL_NAME and container.name == "skills":
+        if same_path(container.parent, codex_home()):
+            return Path.cwd().resolve()
+        if container.parent.name == ".codex":
+            return container.parent.parent.resolve()
     if container.name in ("docs", "doc"):
         return container.parent.resolve()
     return container.resolve()
@@ -1756,45 +1767,38 @@ def resolve_install_platform(value: str) -> str:
     raise DelegateError("Unsupported install platform. Pass --platform Windows or --platform macOS explicitly.")
 
 
-def workflow_install_relative(document_root: Path) -> str:
-    return f"{document_root.name}/codex_with_cc"
-
-
-def update_agent_entrypoint_file(path: Path, workflow_relative: str) -> None:
-    begin = "<!-- BEGIN CODEX_WITH_CC -->"
-    end = "<!-- END CODEX_WITH_CC -->"
-    block = "\n".join(
-        (
-            begin,
-            f"Codex with Claude Code workflow: before using this workflow, read `{workflow_relative}/CODEX_WITH_CC.md`.",
-            "Any user mention of child-agent, subagent, sub-agent, child-thread, subthread, delegation, worker-execution, or Chinese equivalents such as 子代理、子线程、多代理、委派、派工、执行层 is a workflow trigger.",
-            "If the task involves child agents, subagents, delegation, or any worker-execution step, you must read that file first and follow the custom `Codex main thread -> Codex child agent -> delegate_to_claude.* -> Claude Code CLI` workflow defined there.",
-            end,
-        )
-    )
-    if path.exists():
-        text = read_text(path)
-        pattern = re.compile(r"(?s)<!-- BEGIN CODEX_WITH_CC -->.*?<!-- END CODEX_WITH_CC -->")
-        if pattern.search(text):
-            updated = pattern.sub(block, text)
-            if not updated.endswith("\n"):
-                updated += "\n"
-        else:
-            updated = text.rstrip() + "\n\n" + block + "\n"
+def remove_agent_entrypoint_block(path: Path) -> bool:
+    if not path.exists():
+        return False
+    text = read_text(path)
+    pattern = re.compile(r"(?s)<!-- BEGIN CODEX_WITH_CC -->.*?<!-- END CODEX_WITH_CC -->")
+    updated = pattern.sub("", text)
+    if updated == text:
+        return False
+    if updated.strip():
+        write_text(path, updated.strip() + "\n")
     else:
-        updated = block + "\n"
-    write_text(path, updated)
+        path.unlink()
+    return True
 
 
 def update_installed_workflow_references(workflow: Path, workflow_relative: str) -> None:
     canonical = "docs/codex_with_cc"
-    if workflow_relative == canonical:
+    canonical_win = canonical.replace("/", "\\")
+    replacement = workflow_relative.replace("\\", "/")
+    replacement_win = replacement.replace("/", "\\")
+    if replacement == canonical:
         return
     for path in workflow.rglob("*"):
         if not path.is_file() or path.suffix not in {".md", ".ps1", ".sh", ".py"}:
             continue
         text = read_text(path)
-        updated = text.replace(canonical, workflow_relative).replace(canonical.replace("/", "\\"), workflow_relative.replace("/", "\\"))
+        updated = (
+            text.replace(f"./{canonical}", replacement)
+            .replace(f".\\{canonical_win}", replacement_win)
+            .replace(canonical, replacement)
+            .replace(canonical_win, replacement_win)
+        )
         if updated != text:
             write_text(path, updated)
 
@@ -1815,32 +1819,39 @@ def update_gitignore_file(path: Path) -> None:
     write_text(path, updated)
 
 
-def test_document_directory(path: Path) -> bool:
-    if not path.exists():
-        return False
-    if not path.is_dir():
-        raise DelegateError(f"Install document path is not a directory: {path}")
-    return True
-
-
 def copy_workflow_source(source: Path, destination: Path, excluded_script_root: str) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     for item in source.iterdir():
-        if item.name == excluded_script_root:
+        if item.name in (excluded_script_root, "__pycache__") or item.suffix == ".pyc":
             continue
         target = destination / item.name
         if item.is_dir():
             if target.exists():
                 shutil.rmtree(target)
-            shutil.copytree(item, target)
+            shutil.copytree(item, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         else:
             shutil.copy2(item, target)
+
+
+def remove_path_inside(target_root: Path, path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        path.resolve().relative_to(target_root)
+    except ValueError as exc:
+        raise DelegateError(f"Refusing to remove path outside target root: {path}") from exc
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    return True
 
 
 def run_install(ns: argparse.Namespace) -> int:
     install_platform = resolve_install_platform(ns.platform)
     source_workflow = workflow_root()
     installer_root = source_workflow.parent.resolve()
+    source_skill = source_workflow if source_workflow.name == SKILL_NAME else installer_root / "skills" / SKILL_NAME
     target_root = Path(ns.target_root).resolve()
     target_root.mkdir(parents=True, exist_ok=True)
     if same_path(installer_root, target_root):
@@ -1849,37 +1860,37 @@ def run_install(ns: argparse.Namespace) -> int:
         )
     if not source_workflow.exists():
         raise DelegateError(f"Workflow source was not found: {source_workflow}")
+    if not source_skill.exists():
+        raise DelegateError(f"Skill source was not found: {source_skill}")
 
-    docs_candidate = target_root / "docs"
-    doc_candidate = target_root / "doc"
-    has_docs = test_document_directory(docs_candidate)
-    has_doc = test_document_directory(doc_candidate)
-    docs_root = docs_candidate if has_docs or not has_doc else doc_candidate
-    workflow_relative = workflow_install_relative(docs_root)
-    target_workflow = docs_root / "codex_with_cc"
+    target_workflow = codex_home() / "skills" / SKILL_NAME
+    target_local_skill = target_root / ".codex" / "skills" / SKILL_NAME
+    workflow_relative = target_workflow.resolve().as_posix()
     task_root = target_root / ".codex" / "codex_with_cc" / "tasks"
+    cleanup: list[str] = []
 
-    if same_path(source_workflow, target_workflow):
+    if same_path(source_workflow, target_workflow) and not same_path(source_skill, target_workflow):
         raise DelegateError(
             f"Refusing to install codex_with_cc into its own source repository. Choose a different target root: {source_workflow}"
         )
 
-    for candidate in (docs_candidate / "codex_with_cc", doc_candidate / "codex_with_cc"):
-        if candidate.exists():
-            try:
-                candidate.resolve().relative_to(target_root)
-            except ValueError as exc:
-                raise DelegateError(f"Refusing to remove workflow directory outside target root: {candidate}") from exc
-            if same_path(source_workflow, candidate):
-                raise DelegateError(
-                    f"Refusing to install codex_with_cc into its own source repository. Choose a different target root: {source_workflow}"
-                )
-            shutil.rmtree(candidate)
+    for candidate in (target_root / "docs" / "codex_with_cc", target_root / "doc" / "codex_with_cc"):
+        if same_path(source_workflow, candidate):
+            raise DelegateError(
+                f"Refusing to install codex_with_cc into its own source repository. Choose a different target root: {source_workflow}"
+            )
+        if remove_path_inside(target_root, candidate):
+            cleanup.append(candidate.relative_to(target_root).as_posix())
+    if remove_agent_entrypoint_block(target_root / "AGENTS.md"):
+        cleanup.append("AGENTS.md managed block")
+    if remove_path_inside(target_root, target_local_skill):
+        cleanup.append(target_local_skill.relative_to(target_root).as_posix())
+    if not same_path(source_skill, target_workflow) and remove_path_inside(codex_home(), target_workflow):
+        cleanup.append(str(target_workflow))
 
-    docs_root.mkdir(parents=True, exist_ok=True)
-    target_workflow.mkdir(parents=True, exist_ok=True)
-    excluded = "macos_scripts" if install_platform == "Windows" else "windows_scripts"
-    copy_workflow_source(source_workflow, target_workflow, excluded)
+    if not same_path(source_skill, target_workflow):
+        excluded = "macos_scripts" if install_platform == "Windows" else "windows_scripts"
+        copy_workflow_source(source_skill, target_workflow, excluded)
     update_installed_workflow_references(target_workflow, workflow_relative)
     if install_platform == "macOS":
         mac_scripts = target_workflow / "macos_scripts"
@@ -1891,12 +1902,9 @@ def run_install(ns: argparse.Namespace) -> int:
     if gitkeep.exists():
         gitkeep.unlink()
     update_gitignore_file(target_root / ".gitignore")
-    if not ns.skip_agent_entrypoints:
-        update_agent_entrypoint_file(target_root / "AGENTS.md", workflow_relative)
-    print(f"codex_with_cc installed into: {target_workflow}")
-    if not ns.skip_agent_entrypoints:
-        print("Agent entrypoints updated: AGENTS.md")
-    print(f"Next: read {workflow_relative}/CODEX_WITH_CC.md and use it as the single workflow contract.")
+    print(f"codex_with_cc global skill installed into: {target_workflow}")
+    print(f"Old install artifacts cleaned: {', '.join(cleanup) if cleanup else 'none'}")
+    print("Next: restart Codex, then use $codex-with-cc or the subagent/delegation trigger words.")
     return 0
 
 

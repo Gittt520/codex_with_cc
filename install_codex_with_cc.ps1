@@ -112,7 +112,7 @@ function Ensure-CodexWithCcPython {
 }
 
 $installPlatform = Resolve-InstallPlatform -Value $Platform
-$runtimeScript = Join-Path $PSScriptRoot 'codex_with_cc\scripts\install_codex_with_cc.py'
+$runtimeScript = Join-Path $PSScriptRoot 'skills\codex-with-cc\scripts\install_codex_with_cc.py'
 if (-not (Test-Path -LiteralPath $runtimeScript)) {
   throw "Missing shared Python runtime: $runtimeScript"
 }

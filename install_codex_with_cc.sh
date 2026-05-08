@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="${0:A:h}"
-RUNTIME_SCRIPT="$SCRIPT_DIR/codex_with_cc/scripts/install_codex_with_cc.py"
+RUNTIME_SCRIPT="$SCRIPT_DIR/skills/codex-with-cc/scripts/install_codex_with_cc.py"
 BOOTSTRAP_PYTHON="auto"
 RUNTIME_ARGS=()
 

@@ -7,7 +7,7 @@ This document is the portable entry point for the Codex -> Codex child agent -> 
 
 ## Core Contract
 1. The Codex main thread must not run `claude` directly.
-2. The Codex main thread must not run the platform delegate entrypoint directly (`docs/codex_with_cc/windows_scripts/delegate_to_claude.ps1` on Windows or `docs/codex_with_cc/macos_scripts/delegate_to_claude.sh` on macOS), except for the trusted local terminal fallback below.
+2. The Codex main thread must not run the global skill delegate entrypoint directly (`$CODEX_HOME/skills/codex-with-cc/windows_scripts/delegate_to_claude.ps1` on Windows or `$CODEX_HOME/skills/codex-with-cc/macos_scripts/delegate_to_claude.sh` on macOS, with `~/.codex` used when `CODEX_HOME` is unset), except for the trusted local terminal fallback below.
 3. Every Claude Code delegation must be carried by a Codex `spawn_agent` child thread.
 4. The child thread must set `CODEX_CLAUDE_CHILD_THREAD=1` before invoking `delegate_to_claude.*`.
 5. The child thread should use `model: gpt-5.3-codex`, `reasoning_effort: medium`, and `fork_context: false`.
@@ -69,8 +69,9 @@ Normally run this inside a Codex child thread. If the Codex sandbox or delegated
 Windows:
 
 ```powershell
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME '.codex' }
 $env:CODEX_CLAUDE_CHILD_THREAD = '1'
-pwsh -NoProfile -File .\docs\codex_with_cc\windows_scripts\delegate_to_claude.ps1 `
+pwsh -NoProfile -File (Join-Path $codexHome 'skills\codex-with-cc\windows_scripts\delegate_to_claude.ps1') `
   -TaskFile .\.codex\codex_with_cc\tasks\<yyyyMMdd>\<HHmmssfff>-<short-id>-<task-file>.md `
   -SessionMode PrimaryReuse `
   -SessionKey <stable-session-key> `
@@ -80,8 +81,9 @@ pwsh -NoProfile -File .\docs\codex_with_cc\windows_scripts\delegate_to_claude.ps
 macOS:
 
 ```bash
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
 export CODEX_CLAUDE_CHILD_THREAD=1
-./docs/codex_with_cc/macos_scripts/delegate_to_claude.sh \
+"$CODEX_HOME_DIR/skills/codex-with-cc/macos_scripts/delegate_to_claude.sh" \
   -TaskFile ./.codex/codex_with_cc/tasks/<yyyyMMdd>/<HHmmssfff>-<short-id>-<task-file>.md \
   -SessionMode PrimaryReuse \
   -SessionKey <stable-session-key> \
@@ -96,25 +98,29 @@ Run the local regression tests after installing or changing this workflow.
 Windows:
 
 ```powershell
-pwsh -NoProfile -File .\docs\codex_with_cc\windows_scripts\test_delegate_runtime.ps1
-pwsh -NoProfile -File .\docs\codex_with_cc\windows_scripts\test_delegate_session_pool.ps1
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME '.codex' }
+pwsh -NoProfile -File (Join-Path $codexHome 'skills\codex-with-cc\windows_scripts\test_delegate_runtime.ps1')
+pwsh -NoProfile -File (Join-Path $codexHome 'skills\codex-with-cc\windows_scripts\test_delegate_session_pool.ps1')
 ```
 
 macOS:
 
 ```bash
-./docs/codex_with_cc/macos_scripts/test_delegate_runtime.sh
-./docs/codex_with_cc/macos_scripts/test_delegate_session_pool.sh
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+"$CODEX_HOME_DIR/skills/codex-with-cc/macos_scripts/test_delegate_runtime.sh"
+"$CODEX_HOME_DIR/skills/codex-with-cc/macos_scripts/test_delegate_session_pool.sh"
 ```
 
 Generate a real chain validation scaffold with:
 
 ```powershell
-pwsh -NoProfile -File .\docs\codex_with_cc\windows_scripts\run_real_delegate_chain_validation.ps1
+$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME '.codex' }
+pwsh -NoProfile -File (Join-Path $codexHome 'skills\codex-with-cc\windows_scripts\run_real_delegate_chain_validation.ps1')
 ```
 
 or on macOS:
 
 ```bash
-./docs/codex_with_cc/macos_scripts/run_real_delegate_chain_validation.sh
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
+"$CODEX_HOME_DIR/skills/codex-with-cc/macos_scripts/run_real_delegate_chain_validation.sh"
 ```

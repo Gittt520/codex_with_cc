@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
-WORKFLOW = REPO / "codex_with_cc"
+WORKFLOW = REPO / "skills" / "codex-with-cc"
 WIN = WORKFLOW / "windows_scripts"
 
 
