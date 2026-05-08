@@ -150,11 +150,11 @@ def convert_unstructured_final_text(text: str | None) -> str:
     if test_final_result_heading(trimmed):
         return trimmed
     return f"""Process Log
-- Claude returned a successful response without the required delegate report headings.
-- The delegate wrapper normalized that response into the required structured report envelope.
+- Claude Code exited successfully but did not produce the required delegate report headings.
+- The delegate wrapper rejected that unstructured response and preserved it below for audit.
 
 Summary
-Claude completed successfully, but its final response did not use the required report template. The original response is preserved under Final Result.
+Claude Code did not satisfy the delegate report contract. Treat this run as failed even though the Claude CLI process exited with code 0.
 
 Changed Files
 Unknown from unstructured response; inspect repository diff and raw delegate artifacts before accepting file-level conclusions.
@@ -163,11 +163,11 @@ Verification
 Unknown from unstructured response; do not treat verification as proven unless the original response below lists exact commands and outcomes.
 
 Final Result
-UNSTRUCTURED_SUCCESS_NORMALIZED
+UNSTRUCTURED_SUCCESS_REJECTED
 {trimmed}
 
 Risks Or Follow-ups
-- Review the raw stream, trace, and repository diff before accepting verification-sensitive changes.
+- Retry after fixing prompt/session handling, or rerun with a fresh session if the response indicates stale context.
 """
 
 
@@ -190,11 +190,7 @@ def get_output_resolution(
     persisted = convert_unstructured_final_text(final_text) if normalized else final_text
     persisted_has = test_final_result_heading(persisted)
     should_persist = persisted_has or (not existing_structured and bool(final_text.strip()))
-    delegate_succeeded = (
-        exit_code == 0
-        and saw_result_success
-        and (captured_final_result_heading or persisted_has or existing_structured)
-    )
+    delegate_succeeded = exit_code == 0 and saw_result_success and (captured_final_result_heading or existing_structured)
     return {
         "finalTextHasFinalResult": final_has,
         "existingStructuredOutput": existing_structured,
@@ -836,7 +832,9 @@ def build_prompt(
 - If the task is an audit or validation, inspect the scoped files and run the listed verification commands directly instead of creating nested delegate runs.
 - If you think another delegate run is required, stop and explain why in `Final Result` instead of invoking it yourself.
 """
-    return f"""You are Claude Code acting as an implementation worker for Codex.
+    return f"""Execute the delegated task below now. This is not a readiness check; do not ask what to work on.
+
+You are Claude Code acting as an implementation worker for Codex.
 
 This worker script is reserved for Codex `spawn_agent` child threads. It is not a valid main-thread entry point.
 
@@ -1342,6 +1340,18 @@ Risks Or Follow-ups
                 if output_resolution["outputWasNormalized"]:
                     attempt_record["capturedFinalResult"] = True
                     attempt_record["outputWasNormalized"] = True
+                    attempt_record["claudeExitCode"] = exit_code
+                    exit_code = 1
+                    attempt_record["exitCode"] = exit_code
+                    failure_disposition = "NEED_HUMAN_INTERVENTION"
+                    failure_summary_text = (
+                        "UNSTRUCTURED_SUCCESS_REJECTED: Claude Code exited with code 0 but did not produce the required "
+                        "delegate report headings, so the wrapper rejected the run."
+                    )
+                    status["failureDisposition"] = failure_disposition
+                    status["failureSummary"] = failure_summary_text
+                    config["failureDisposition"] = failure_disposition
+                    config["failureSummary"] = failure_summary_text
                 delegate_succeeded = bool(output_resolution["delegateSucceeded"])
                 break
 
@@ -1977,12 +1987,13 @@ def run_test_runtime(_: argparse.Namespace) -> int:
             ["-Task", "unstructured success normalization probe", "-ArtifactRoot", str(run_root), "-SessionKey", "unstructured"],
             env=env,
         )
-        assert_equal(run.returncode, 0, "unstructured-run-succeeds")
+        assert_true(run.returncode != 0, "unstructured-run-fails")
         output_text = read_text(next(run_root.glob("claude_*.md")))
         status = load_json(next(run_root.glob("status_*.json")))
         assert_true(test_final_result_heading(output_text), "unstructured-output-has-final-result")
-        assert_true("UNSTRUCTURED_SUCCESS_NORMALIZED" in output_text, "unstructured-output-labels-normalization")
-        assert_equal(status["status"], "completed", "unstructured-status-completed")
+        assert_true("UNSTRUCTURED_SUCCESS_REJECTED" in output_text, "unstructured-output-labels-rejection")
+        assert_equal(status["status"], "failed", "unstructured-status-failed")
+        assert_equal(status["failureDisposition"], "NEED_HUMAN_INTERVENTION", "unstructured-failure-disposition")
         assert_true(boolish(status.get("outputWasNormalized")), "unstructured-status-records-normalization")
 
         decision = retry_decision(
