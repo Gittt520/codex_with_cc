@@ -34,13 +34,8 @@ assert "Write" in codex_interface["capabilities"]
 assert any("aiskyhub/aiskyhub" in prompt for prompt in codex_interface["defaultPrompt"])
 assert "marketplace" in claude_plugin["description"].lower()
 
-assert "双平台插件" in readme_text
-assert ".codex-plugin/plugin.json" in readme_text
-assert ".claude-plugin/plugin.json" in readme_text
-assert "插件优先" in readme_text
-assert "aiskyhub/aiskyhub" in readme_text
-assert "codex plugin marketplace add aiskyhub/aiskyhub" in readme_text
-assert "/plugin install codex-with-cc@aiskyhub --scope user" in readme_text
+assert "[AI_INSTALL.md](AI_INSTALL.md)" in readme_text
+assert "请把 https://github.com/xdd666t/codex_with_cc 调度子代理工作流集成或更新到codex的skill中。" in readme_text
 assert compat_install_phrase not in readme_text
 
 assert "marketplace-only" in ai_install_text
