@@ -230,6 +230,14 @@ def report_has_verification_evidence(text: str) -> bool:
     return normalized not in {"none", "- none", "not run", "- not run", "unknown", "- unknown"}
 
 
+def declared_test_variants(test: str, run_id: str, task_id: str) -> set[str]:
+    return {
+        test,
+        test.replace(f"<{task_id}-run-id>", run_id),
+        test.replace("<run-id>", run_id),
+    }
+
+
 def enforce_workflow_review_gates(workflow: dict[str, Any]) -> None:
     tasks = workflow.get("tasks") if isinstance(workflow.get("tasks"), dict) else {}
     problems: list[str] = []
@@ -287,9 +295,13 @@ def enforce_declared_tests_are_reported(workflow: dict[str, Any], verified_runs:
         verification_text = report_section(report_text, "Verification")
         if parse_report_status(report_text) != "DONE":
             continue
-        missing = [item for item in tests if item not in verification_text]
+        task_id = str(config.get("taskId") or (run or {}).get("taskId") or run_id)
+        missing = [
+            item
+            for item in tests
+            if not any(variant in verification_text for variant in declared_test_variants(item, str(run_id), task_id))
+        ]
         if missing:
-            task_id = config.get("taskId") or (run or {}).get("taskId") or run_id
             problems.append(f"task {task_id} missing declared verification evidence: {'; '.join(missing)}")
     if problems:
         raise DelegateError("Workflow declared verification failed: " + "; ".join(problems))

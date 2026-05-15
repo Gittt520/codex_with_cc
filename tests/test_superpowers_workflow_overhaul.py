@@ -423,6 +423,91 @@ def test_workflow_verifier_requires_declared_tests_in_done_reports() -> None:
         assert "pytest -q" in (missing_test_evidence.stdout + missing_test_evidence.stderr)
 
 
+def test_workflow_verifier_accepts_declared_run_id_placeholder_evidence() -> None:
+    with tempfile.TemporaryDirectory(prefix="codex_with_cc_declared_run_id_") as tmp:
+        root = Path(tmp)
+        artifact_root = root / "artifacts"
+        declared = (
+            'pwsh -NoProfile -File .\\skills\\codex-with-cc\\windows_scripts\\verify_delegate_artifacts.ps1 '
+            '-RunId <task-research-run-id> -ArtifactRoot "X"'
+        )
+        fake_bin = make_fake_claude_bin(root, "researcher", "- placeholder verification")
+        task_file = write_task(root, "task-research", "Research with declared run-id token.")
+        researcher = subprocess.run(
+            [
+                sys.executable,
+                str(DELEGATE),
+                "-TaskFile",
+                str(task_file),
+                "-WorkflowId",
+                "wf-run-id-placeholder",
+                "-TaskId",
+                "task-research",
+                "-Role",
+                "researcher",
+                "-SessionKey",
+                "run-id-placeholder",
+                "-Tests",
+                declared,
+                "-ArtifactRoot",
+                str(artifact_root),
+            ],
+            cwd=REPO,
+            text=True,
+            capture_output=True,
+            env={
+                **os.environ,
+                "CODEX_CLAUDE_CHILD_THREAD": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}",
+            },
+        )
+        assert researcher.returncode == 0, researcher.stdout + researcher.stderr
+        run_id = run_id_from_output(researcher.stdout)
+        actual = declared.replace("<task-research-run-id>", run_id)
+        output = artifact_root / f"claude_{run_id}.md"
+        output.write_text(
+            "\n".join(
+                (
+                    "Status",
+                    "DONE",
+                    "",
+                    "Role",
+                    "researcher",
+                    "",
+                    "Summary",
+                    "Verified declared run-id placeholder evidence.",
+                    "",
+                    "Changed Files",
+                    "None",
+                    "",
+                    "Verification",
+                    f"- {actual}",
+                    "",
+                    "Findings",
+                    "None",
+                    "",
+                    "Final Result",
+                    "DONE",
+                    "",
+                    "Risks Or Follow-ups",
+                    "None",
+                )
+            ),
+            encoding="utf-8",
+        )
+
+        verified = run_python(
+            VERIFY_WORKFLOW,
+            "-WorkflowId",
+            "wf-run-id-placeholder",
+            "-ArtifactRoot",
+            str(artifact_root),
+        )
+
+        assert verified.returncode == 0, verified.stdout + verified.stderr
+
+
 def test_workflow_verifier_rejects_overlapping_parallel_implementer_scope() -> None:
     with tempfile.TemporaryDirectory(prefix="codex_with_cc_parallel_scope_") as tmp:
         root = Path(tmp)

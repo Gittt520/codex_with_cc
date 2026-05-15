@@ -84,10 +84,13 @@ def run_real_chain_validation(ns: argparse.Namespace) -> int:
         task_path = dated_task_root / f"{batch_id}-{file_name}"
         task_id = file_name.replace(".md", "")
         task_files.append(task_path)
-        verify_command = f"{script_command(slash_verify)} -RunId <{file_name.replace('.md', '-run-id')}> -ArtifactRoot \"{artifact_root}\""
+        worker_verification = (
+            "- Inspect the scoped files for this assignment and report concrete findings.\n"
+            "- Do not run verify_delegate_artifacts against this run's own live artifacts; Codex main thread runs post-run artifact verification after delegate completion."
+        )
         scope = "\n".join(scope_items)
         scope_flags = " ".join(f'-Scope "{item}"' for item in scope_items)
-        required_args = f'-TaskFile "{task_path}" -WorkflowId "{workflow_id}" -TaskId "{task_id}" -Role researcher -ArtifactRoot "{artifact_root}" -SessionKey "{session_key}" {flags} {scope_flags} -Tests \'{verify_command}\' -BypassPermissions'
+        required_args = f'-TaskFile "{task_path}" -WorkflowId "{workflow_id}" -TaskId "{task_id}" -Role researcher -ArtifactRoot "{artifact_root}" -SessionKey "{session_key}" {flags} {scope_flags} -BypassPermissions'
         content = f"""# Real Delegate Chain Validation Task
 
 - SessionKey: {session_key}
@@ -115,7 +118,7 @@ Acceptance Criteria
 - Preserve the workflow/task/run metadata in the final report.
 
 Verification
-{verify_command}
+{worker_verification}
 
 Report Requirements
 - 输出必须包含 Status / Role / Summary / Changed Files / Verification / Findings / Final Result / Risks Or Follow-ups。

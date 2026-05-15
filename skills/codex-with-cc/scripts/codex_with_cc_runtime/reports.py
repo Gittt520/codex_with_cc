@@ -95,6 +95,9 @@ def text_has_required_report_headings(text: str | None) -> bool:
     if not text or not text.strip():
         return False
     text = _text_outside_fenced_blocks(text)
+    first_content = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    if first_content != "Status":
+        return False
     positions: list[int] = []
     for heading in REPORT_HEADINGS:
         match = report_heading_match(text, heading)

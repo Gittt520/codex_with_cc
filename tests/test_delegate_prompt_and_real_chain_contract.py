@@ -92,5 +92,6 @@ def test_delegate_prompt_and_real_chain_contract() -> None:
         assert '-Scope "' in task_text
         assert 'windows_scripts/delegate_to_claude.ps1"' in task_text
         assert 'CODEX_WITH_CC.md"' in task_text
-        assert "-Tests 'pwsh -NoProfile -File .\\" in task_text
-        assert "verify_delegate_artifacts.ps1 -RunId <anchor-read-protocol-run-id>" in task_text
+        assert "-Tests " not in task_text
+        assert "Do not run verify_delegate_artifacts against this run's own live artifacts" in task_text
+        assert "verify_delegate_artifacts.ps1 -RunId <anchor-run-id>" in chain_run.stdout
