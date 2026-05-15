@@ -1,0 +1,3 @@
+interface:
+  display_name: "Workflow Finishing"
+  short_description: "Verify workflow artifacts and final acceptance evidence"

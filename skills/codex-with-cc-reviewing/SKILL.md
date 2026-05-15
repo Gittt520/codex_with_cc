@@ -3,7 +3,7 @@ name: codex-with-cc-reviewing
 description: Review codex-with-cc worker reports, verification evidence, changed files, and findings before accepting or returning delegated work.
 ---
 
-# Codex With CC Reviewing
+# Codex with CC Reviewing
 
 Read `../codex-with-cc/CODEX_WITH_CC.md` before reviewing delegated results.
 

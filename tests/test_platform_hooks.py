@@ -50,7 +50,7 @@ def test_session_start_injects_codex_with_cc_contract() -> None:
     assert specific["hookEventName"] == "SessionStart"
     assert "<EXTREMELY_IMPORTANT>" in context
     assert "Below is the full content of your 'codex-with-cc' skill" in context
-    assert "# Codex With CC" in context
+    assert "# Codex with CC" in context
     assert "## Core Contract" in context
     assert "codex-with-cc" in context
     assert "spawn_agent" in context

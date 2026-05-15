@@ -1,9 +1,9 @@
 ---
 name: codex-with-cc-dispatching
-description: Dispatch codex-with-cc tasks through the required Codex child thread -> delegate_to_claude.* -> Claude Code CLI chain with WorkflowId, TaskId, Role, and Scope metadata.
+description: Dispatch codex-with-cc tasks through the required Codex child thread to delegate_to_claude.* to Claude Code CLI chain with WorkflowId, TaskId, Role, and Scope metadata.
 ---
 
-# Codex With CC Dispatching
+# Codex with CC Dispatching
 
 Read `../codex-with-cc/CODEX_WITH_CC.md` before dispatching. Use this skill after planning has produced task boundaries.
 

@@ -3,7 +3,7 @@ name: codex-with-cc-finishing
 description: Finish codex-with-cc workflows by verifying workflow artifacts, session continuity when needed, and final acceptance evidence.
 ---
 
-# Codex With CC Finishing
+# Codex with CC Finishing
 
 Read `../codex-with-cc/CODEX_WITH_CC.md` before finishing a workflow.
 

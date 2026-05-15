@@ -110,7 +110,7 @@ def test_hook_gate_reads_spawn_requirements_from_contract_json() -> None:
         workflow_root = plugin_root / "skills" / "codex-with-cc"
         workflow_root.mkdir(parents=True)
         (workflow_root / "SKILL.md").write_text("# codex-with-cc\n", encoding="utf-8")
-        (workflow_root / "CODEX_WITH_CC.md").write_text("# Codex With CC\n", encoding="utf-8")
+        (workflow_root / "CODEX_WITH_CC.md").write_text("# Codex with CC\n", encoding="utf-8")
         contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
         contract["spawn"]["model"] = "contract-model"
         (workflow_root / "contract.json").write_text(json.dumps(contract), encoding="utf-8")

@@ -3,7 +3,7 @@ name: codex-with-cc-planning
 description: Plan codex-with-cc workflows by turning a subagent or delegation request into scoped tasks, roles, acceptance criteria, and review gates before dispatch.
 ---
 
-# Codex With CC Planning
+# Codex with CC Planning
 
 Read `../codex-with-cc/CODEX_WITH_CC.md` before planning. Use this skill when a request needs child-agent, subagent, delegation, 子代理, 委派, or 派工 routing through codex-with-cc.
 

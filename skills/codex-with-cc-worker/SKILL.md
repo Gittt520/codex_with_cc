@@ -3,7 +3,7 @@ name: codex-with-cc-worker
 description: Prepare codex-with-cc worker task files and report requirements for Claude Code execution roles.
 ---
 
-# Codex With CC Worker
+# Codex with CC Worker
 
 Read `../codex-with-cc/CODEX_WITH_CC.md` before preparing a worker task.
 

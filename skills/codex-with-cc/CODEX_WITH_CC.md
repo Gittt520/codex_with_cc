@@ -1,4 +1,4 @@
-# Codex With CC
+# Codex with CC
 
 This is the portable contract for the Codex main thread -> Codex child thread -> Claude Code CLI workflow.
 

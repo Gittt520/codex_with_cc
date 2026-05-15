@@ -12,6 +12,13 @@ workflow_skill_names = (
     "codex-with-cc-reviewing",
     "codex-with-cc-finishing",
 )
+workflow_skill_display_names = {
+    "codex-with-cc-planning": "Delegation Planning",
+    "codex-with-cc-dispatching": "Task Dispatching",
+    "codex-with-cc-worker": "Worker Task Prep",
+    "codex-with-cc-reviewing": "Result Reviewing",
+    "codex-with-cc-finishing": "Workflow Finishing",
+}
 skill_md = skill / "SKILL.md"
 openai_yaml = skill / "agents" / "openai.yaml"
 codex_plugin = repo / ".codex-plugin" / "plugin.json"
@@ -104,7 +111,8 @@ def test_codex_with_cc_skill_contract() -> None:
     assert "plugin-managed installation" in text
 
     metadata = openai_yaml.read_text(encoding="utf-8")
-    assert 'display_name: "Codex With CC"' in metadata
+    assert 'display_name: "Codex with CC"' in metadata
+    assert "Codex with " + "Cc" not in metadata
     assert 'default_prompt: "Use $codex-with-cc' in metadata
     assert "allow_implicit_invocation: true" in metadata
 
@@ -124,10 +132,16 @@ def test_codex_with_cc_skill_contract() -> None:
 
     for skill_name in workflow_skill_names:
         skill_file = repo / "skills" / skill_name / "SKILL.md"
+        skill_openai_yaml = repo / "skills" / skill_name / "agents" / "openai.yaml"
         assert skill_file.exists()
+        assert skill_openai_yaml.exists()
         skill_text = skill_file.read_text(encoding="utf-8")
         assert "codex-with-cc" in skill_text
         assert "CODEX_WITH_CC.md" in skill_text
+        skill_metadata = skill_openai_yaml.read_text(encoding="utf-8")
+        display_name = workflow_skill_display_names[skill_name]
+        assert f'display_name: "{display_name}"' in skill_metadata
+        assert "Codex with " + "Cc" not in skill_metadata
 
 
 def test_workflow_docs_do_not_expose_version_branding() -> None:

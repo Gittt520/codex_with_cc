@@ -3,7 +3,7 @@ name: codex-with-cc
 description: Force Codex with Claude Code routing for any child-agent, subagent, sub-agent, child-thread, subthread, delegation, worker-execution, 子代理, 子线程, 多代理, 委派, 派工, or 执行层 task; use this skill whenever Codex must plan, dispatch, review, or execute work through child agents instead of default subagent behavior.
 ---
 
-# Codex With CC
+# Codex with CC
 
 ## Core Rule
 
