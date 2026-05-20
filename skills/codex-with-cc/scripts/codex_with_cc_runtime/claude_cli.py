@@ -75,7 +75,7 @@ def update_stream_capture(record: dict[str, Any], state: dict[str, Any]) -> list
 
 def new_claude_cli_args(
     model: str,
-    session_name: str,
+    _session_name: str,
     session_id: str,
     resume: bool,
     max_budget_usd: str | None,
@@ -90,8 +90,6 @@ def new_claude_cli_args(
         "text",
         "--model",
         model,
-        "--name",
-        session_name,
         "--permission-mode",
         "acceptEdits",
     ]

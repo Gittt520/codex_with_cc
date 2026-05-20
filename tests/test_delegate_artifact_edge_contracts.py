@@ -86,6 +86,44 @@ def make_fake_claude_bin(root: Path) -> Path:
     return fake_bin
 
 
+def make_name_rejecting_fake_claude_bin(root: Path) -> Path:
+    fake_bin = root / "fake-name-rejecting-claude-bin"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    script = fake_bin / "fake_name_rejecting_claude.py"
+    assistant = json.dumps(
+        {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": REPORT}]}}
+    )
+    result = json.dumps({"type": "result", "subtype": "success"})
+    script.write_text(
+        "\n".join(
+            (
+                "import sys",
+                "",
+                "sys.stdin.read()",
+                "if '--name' in sys.argv[1:]:",
+                "    print(\"error: unknown option '--name'\")",
+                "    raise SystemExit(1)",
+                f"print({assistant!r})",
+                f"print({result!r})",
+            )
+        ),
+        encoding="utf-8",
+    )
+    if os.name == "nt":
+        (fake_bin / "claude.cmd").write_text(
+            f'@echo off\n"{sys.executable}" "{script}" %*\n',
+            encoding="utf-8",
+        )
+    else:
+        shim = fake_bin / "claude"
+        shim.write_text(
+            f"#!/bin/sh\nexec '{sys.executable}' '{script}' \"$@\"\n",
+            encoding="utf-8",
+        )
+        shim.chmod(shim.stat().st_mode | stat.S_IEXEC)
+    return fake_bin
+
+
 def make_file_report_fake_claude_bin(root: Path) -> Path:
     fake_bin = root / "fake-file-report-claude-bin"
     fake_bin.mkdir(parents=True, exist_ok=True)
@@ -224,6 +262,25 @@ def test_custom_output_path_is_verified_from_config() -> None:
 
         assert verified.returncode == 0, verified.stdout + verified.stderr
         assert f"Artifact verification passed for RunId: {run_id}" in verified.stdout
+
+
+def test_delegate_does_not_pass_removed_claude_name_option() -> None:
+    with tempfile.TemporaryDirectory(prefix="codex_with_cc_no_claude_name_arg_") as tmp:
+        root = Path(tmp)
+        artifact_root = root / "artifacts"
+        fake_bin = make_name_rejecting_fake_claude_bin(root)
+
+        result = run_delegate(
+            "current Claude CLI compatibility",
+            ["-BypassPermissions", "-MaxRetryCount", "0"],
+            artifact_root,
+            {"PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}"},
+        )
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        run_id = run_id_from_output(result.stdout)
+        verified = verify_artifacts(run_id, artifact_root)
+        assert verified.returncode == 0, verified.stdout + verified.stderr
 
 
 def test_dry_run_writes_complete_verifiable_artifacts() -> None:
